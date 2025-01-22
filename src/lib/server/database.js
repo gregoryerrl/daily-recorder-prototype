@@ -101,6 +101,65 @@ export async function initDatabase() {
   try {
     await testConnection(); // Test connection first
 
+    // Read and execute schema.sql
+    const schema = await db.execute(`
+      -- Table: collectors
+      CREATE TABLE IF NOT EXISTS collectors (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          max_occurrences_per_day INTEGER NOT NULL DEFAULT -1 CHECK (max_occurrences_per_day = -1 OR max_occurrences_per_day > 0),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          deleted_at TEXT DEFAULT NULL
+      );
+
+      -- Table: fields
+      CREATE TABLE IF NOT EXISTS fields (
+          id TEXT PRIMARY KEY,
+          collector_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          type TEXT NOT NULL CHECK (type IN ('text', 'number', 'checkbox', 'textarea')),
+          required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0,1)),
+          settings TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(settings)),
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          deleted_at TEXT DEFAULT NULL
+      );
+
+      -- Table: entries
+      CREATE TABLE IF NOT EXISTS entries (
+          id TEXT PRIMARY KEY,
+          collector_id TEXT NOT NULL,
+          entry_date TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          deleted_at TEXT DEFAULT NULL
+      );
+
+      -- Table: entry_values
+      CREATE TABLE IF NOT EXISTS entry_values (
+          id TEXT PRIMARY KEY,
+          entry_id TEXT NOT NULL,
+          field_id TEXT NOT NULL,
+          value_text TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          deleted_at TEXT DEFAULT NULL
+      );
+
+      -- Table: files (for future use)
+      CREATE TABLE IF NOT EXISTS files (
+          id TEXT PRIMARY KEY,
+          entry_value_id TEXT NOT NULL,
+          storage_path TEXT NOT NULL,
+          original_filename TEXT,
+          mime_type TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          deleted_at TEXT DEFAULT NULL
+      );
+    `);
+
     console.log("Database initialized successfully");
   } catch (err) {
     console.error("Failed to initialize database:", err);
@@ -308,12 +367,42 @@ export async function deleteCollector(id) {
   try {
     validateId(id);
 
-    // For now, just delete the collector and let CASCADE handle the rest
+    await db.execute("BEGIN TRANSACTION");
+
+    // Delete related records manually since we don't have CASCADE
+    // Delete files linked to entry_values
+    await db.execute({
+      sql: "DELETE FROM files WHERE entry_value_id IN (SELECT ev.id FROM entry_values ev JOIN entries e ON ev.entry_id = e.id WHERE e.collector_id = ?)",
+      args: [id],
+    });
+
+    // Delete entry_values linked to entries
+    await db.execute({
+      sql: "DELETE FROM entry_values WHERE entry_id IN (SELECT id FROM entries WHERE collector_id = ?)",
+      args: [id],
+    });
+
+    // Delete entries
+    await db.execute({
+      sql: "DELETE FROM entries WHERE collector_id = ?",
+      args: [id],
+    });
+
+    // Delete fields
+    await db.execute({
+      sql: "DELETE FROM fields WHERE collector_id = ?",
+      args: [id],
+    });
+
+    // Finally delete the collector
     await db.execute({
       sql: "DELETE FROM collectors WHERE id = ?",
       args: [id],
     });
+
+    await db.execute("COMMIT");
   } catch (err) {
+    await db.execute("ROLLBACK");
     if (err.status) throw err;
     console.error("Database error in deleteCollector:", err);
     throw error(500, {
