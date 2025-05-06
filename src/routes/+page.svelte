@@ -1,174 +1,134 @@
-<!-- Dashboard page -->
 <script>
-  import { Card, Button, Heading, Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell, Datepicker, Select } from 'flowbite-svelte';
-  import { onMount } from 'svelte';
-
+  import { enhance } from '$app/forms';
+  import { showToast } from '$lib/stores/ui.js';
+  
   /** @type {import('./$types').PageData} */
   export let data;
-
-  let collectors = [];
-  let selectedDate = new Date();
-  // Set the time to noon UTC to avoid timezone issues
-  selectedDate.setUTCHours(12, 0, 0, 0);
-  let formattedDate = formatDateForAPI(selectedDate);
-  let selectedCollector = null;
-  let entries = [];
-  let fields = [];
-  let isLoading = false;
-
-  $: collectorOptions = collectors.map((c) => ({
-    value: c.id,
-    name: c.name
-  }));
-
-  $: selectedCollectorId = selectedCollector?.id || '';
-
-  $: if (selectedDate) {
-    formattedDate = formatDateForAPI(selectedDate);
-    if (selectedCollector) {
-      loadEntries();
-    }
-  }
-
-  onMount(async () => {
-    const response = await fetch('/api/collectors');
-    collectors = await response.json();
-    if (collectors.length > 0) {
-      selectedCollector = collectors[0];
-      await Promise.all([loadFields(), loadEntries()]);
-    }
-  });
-
-  function formatDateForAPI(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  function formatDate(date) {
-    return new Date(date).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  }
-
-  function formatValue(field, value) {
-    if (!value) return '-';
+  
+  /** @type {import('./$types').ActionData} */
+  export let form;
+  
+  let newEntry = {
+    title: '',
+    content: '',
+    category_id: ''
+  };
+  
+  let isSubmitting = false;
+  
+  // Bare bones enhance function - simplest possible implementation
+  function submitForm() {
+    console.log('Enhance function called');
     
-    switch (field.type) {
-      case 'checkbox':
-        return value.value_text === 'true' ? '✓' : '✗';
-      case 'number':
-        return Number(value.value_text).toLocaleString();
-      default:
-        return value.value_text;
-    }
-  }
-
-  async function handleDateChange(event) {
-    const newDate = new Date(event.detail);
-    newDate.setUTCHours(12, 0, 0, 0);
-    selectedDate = newDate;
-    formattedDate = formatDateForAPI(selectedDate);
-    if (selectedCollector) {
-      await loadEntries();
-    }
-  }
-
-  async function loadFields() {
-    if (!selectedCollector) return;
-    const response = await fetch(`/api/collectors/${selectedCollector.id}/fields`);
-    fields = await response.json();
-  }
-
-  async function loadEntries() {
-    if (!selectedCollector) return;
-    isLoading = true;
-    try {
-      const response = await fetch(`/api/entries?collectorId=${selectedCollector.id}&date=${formattedDate}`);
-      if (!response.ok) {
-        throw new Error('Failed to load entries');
-      }
-      entries = await response.json();
-    } catch (error) {
-      console.error('Failed to load entries:', error);
-      entries = [];
-    } finally {
-      isLoading = false;
-    }
-  }
-
-  async function handleCollectorChange(event) {
-    const newCollectorId = event.target.value;
-    selectedCollector = collectors.find((c) => c.id === newCollectorId);
-    await Promise.all([loadFields(), loadEntries()]);
+    isSubmitting = true;
+    
+    return async ({ update }) => {
+      console.log('Form submission complete');
+      isSubmitting = false;
+      
+      window.location.reload();
+    };
   }
 </script>
 
-<div class="flex flex-col w-full gap-6">
-  <!-- Top Bar -->
-  <div class="w-full">
-    <div class="flex items-center justify-around">
-      <div class="flex items-center gap-4 flex-1">
-        <span class="text-gray-500">Collector:</span>
-        <Select
-          class="w-64"
-          items={collectorOptions}
-          bind:value={selectedCollectorId}
-          on:change={handleCollectorChange}
-        />
-        <div class="w-80">
-          <Datepicker
-            bind:value={selectedDate}
+<svelte:head>
+  <title>Daily Recorder</title>
+</svelte:head>
+
+<div class="container mx-auto p-4">
+  <h1 class="text-3xl font-bold mb-6">Daily Recorder</h1>
+  
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Left sidebar with form -->
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-semibold mb-4">Add New Entry</h2>
+      
+      <form method="POST" action="?/createEntry" use:enhance={submitForm}>
+        <div class="mb-4">
+          <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            bind:value={newEntry.title}
+            required
           />
         </div>
-      </div>
-      {#if selectedCollector}
-        <Button href={`/entries/new?collectorId=${selectedCollector.id}&date=${formattedDate}`}>
-          Add Entry
-        </Button>
+        
+        <div class="mb-4">
+          <label for="content" class="block text-sm font-medium text-gray-700">Content</label>
+          <textarea
+            id="content"
+            name="content"
+            rows="4"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            bind:value={newEntry.content}
+            required
+          ></textarea>
+        </div>
+        
+        <div class="mb-4">
+          <label for="category_id" class="block text-sm font-medium text-gray-700">Category</label>
+          <select
+            id="category_id"
+            name="category_id"
+            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            bind:value={newEntry.category_id}
+          >
+            <option value="">-- Select Category --</option>
+            {#each data.categories as category}
+              <option value={category.id}>{category.name}</option>
+            {/each}
+          </select>
+        </div>
+        
+        <button 
+          type="submit" 
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded hover:bg-indigo-700 flex justify-center items-center" 
+          disabled={isSubmitting}
+        >
+          {#if isSubmitting}
+            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Saving...
+          {:else}
+            Save Entry
+          {/if}
+        </button>
+      </form>
+    </div>
+    
+    <!-- Main content area with entries -->
+    <div class="md:col-span-2">
+      <h2 class="text-xl font-semibold mb-4">Recent Entries</h2>
+      
+      {#if data.entries.length === 0}
+        <div class="bg-white p-4 rounded shadow text-center">
+          <p>No entries yet. Add your first entry!</p>
+        </div>
+      {:else}
+        <div class="space-y-4">
+          {#each data.entries as entry}
+            <div class="bg-white p-4 rounded shadow">
+              <div class="flex justify-between items-start">
+                <a href="/entry/{entry.id}" class="text-lg font-medium hover:text-indigo-600">{entry.title}</a>
+                {#if entry.category_name}
+                  <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                    {entry.category_name}
+                  </span>
+                {/if}
+              </div>
+              <p class="mt-2 text-gray-700">{entry.content}</p>
+              <div class="mt-2 text-xs text-gray-500">
+                {new Date(entry.created_at).toLocaleString()}
+              </div>
+            </div>
+          {/each}
+        </div>
       {/if}
     </div>
-  </div>
-
-  <!-- Main Content -->
-  <div class="w-full">
-    {#if !selectedCollector}
-      <p class="text-gray-500">Select a collector to view entries</p>
-    {:else}
-      <Heading tag="h2" class="text-2xl mb-6 font-thin">Records for <span class="font-normal">{formatDate(selectedDate)}</span></Heading>
-      
-      {#if isLoading}
-        <p class="text-gray-500">Loading entries...</p>
-      {:else if entries.length === 0}
-        <p class="text-gray-500">No entries found for this date. Add your first entry!</p>
-      {:else}
-        <Table>
-          <TableHead>
-            <TableHeadCell>Time</TableHeadCell>
-            {#each fields as field}
-              <TableHeadCell>{field.label}</TableHeadCell>
-            {/each}
-          </TableHead>
-          <TableBody>
-            {#each entries as entry}
-              <TableBodyRow>
-                <TableBodyCell>
-                  {new Date(entry.created_at).toLocaleTimeString()}
-                </TableBodyCell>
-                {#each fields as field}
-                  <TableBodyCell>
-                    {formatValue(field, entry.values.find((v) => v.field_id === field.id))}
-                  </TableBodyCell>
-                {/each}
-              </TableBodyRow>
-            {/each}
-          </TableBody>
-        </Table>
-      {/if}
-    {/if}
   </div>
 </div>

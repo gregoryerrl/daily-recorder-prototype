@@ -1,163 +1,52 @@
-# Daily Recorder App
+# Daily Recorder - SvelteKit SSR Demo
 
-## Purpose
-The Daily Recorder App is a versatile journaling tool designed to help users document custom data entries on a daily basis. It offers a highly customizable and intuitive interface, making it suitable for personal, business, or specialized record-keeping needs.
+A simple application to demonstrate Server-Side Rendering (SSR) concepts in SvelteKit.
 
----
+## Features
 
-### **Main Features**
-- **Custom Data Recording**:
-  - Users can create groups (collectors) to define their own set of fields.
-  - Groups can include fields of various types such as text, numbers, monetary values, checkboxes, photos, and more.
-- **Calendar Interface**:
-  - Displays a monthly calendar to log data entries.
-  - Highlights days with existing entries for easy navigation.
-- **Field Validation**:
-  - Required fields ensure users provide essential information before saving entries.
+- Server-side data loading with `load` functions
+- Form actions for data creation
+- Database integration with Turso SQL
+- SSR optimized pages
 
-### **Entry Management**
-- Add, edit, and delete entries for any day.
-- Fields are customized per group, ensuring only valid data types are input.
+## SSR Concepts Demonstrated
 
-### **Navigation**
-- Switch between months to view or edit past entries.
+1. **Server-Side Rendering**: All pages are rendered on the server first, providing better SEO and faster initial loads.
 
-### **Future Enhancements (v1.5) - To be discussed again after the first version**
-- Add support for **basic reporting** on data entries.
-- Implement field-level validations (e.g., numeric ranges, monetary limits).
+2. **Server Load Functions**: Each page uses a `+page.server.js` file with a `load` function that fetches data on the server before the page is rendered.
 
----
+3. **Form Actions**: SvelteKit's form actions are used for data submission, providing progressive enhancement with JavaScript and fallback to standard form submissions.
 
-## Developer Guide
+4. **Data Fetching**: Database queries are executed on the server, not exposing the database to the client.
 
-### **Project Structure**
-Ensure the project is organized to support customization and scalability:
-- **Techstack**:
-  - Fullstack Framework: **SvelteKit**
-  - Database: **TursoDB**
-  - Authentication: **Clerk-Sveltekit**
-  - CSS Library: **TailwindCSS**
-  - UI/Component Library: **Flowbite-Svelte**
+5. **Route Parameters**: The `/entry/[id]` route demonstrates how to use dynamic parameters in routes.
 
-### **Development Tasks**
+## Project Structure
 
-#### **Frontend Tasks**
-1. **Account Creation**:
-   - Implement user registration and login functionality.
-2. **Calendar View**:
-   - Display the current month and highlight days with entries.
-   - Enable navigation between months.
-3. **Custom Group Input**:
-   - Design and implement group-based input fields.
-   - Enforce required fields and field validation.
-4. **Entry Management**:
-   - Add edit and delete functionality for individual entries.
-5. **Responsive Design**:
-   - Optimize the interface for mobile screens.
-6. **Group Configuration**:
-   - Build an interface for users to create and edit groups.
+- `src/lib/server/database.js` - Database configuration and query functions
+- `src/lib/server/schema.sql` - SQL schema definition
+- `src/routes/+page.server.js` - Server load function for the main page
+- `src/routes/+page.svelte` - UI component for the main page
+- `src/routes/categories/` - Pages related to categories
+- `src/routes/entry/[id]/` - Dynamic route for viewing individual entries
+- `src/routes/new/` - Page for creating new entries
 
-#### **Backend Tasks**
-1. **User Authentication**:
-   - Implement secure login and registration functionality.
-2. **Data Management**:
-   - Design APIs to handle CRUD operations for entries and groups.
-3. **Field Validation**:
-   - Implement logic to validate field types and required inputs.
-4. **Reporting Features**:
-   - Develop backend support for data summaries and filtered views (v1.5).
+## Environment Variables
 
-### **Database Structure**
-- Follow the provided database schema for tables like `collectors`, `fields`, `entries`, and `entry_values`. You can check the database schema at the bottom of this README.md
-- Ensure robust relationships between tables to support dynamic data entry and retrieval.
+The project uses the following environment variables:
 
----
+- `TURSO_DB_URL`: URL of the Turso database
+- `TURSO_DB_AUTH_TOKEN`: Authentication token for the Turso database
 
-### **Running the App**
-- Start the development server:
-  ```bash
-  npm run dev
-  ```
-- Access the app at `http://localhost:5173`.
+## Running the Project
 
----
+```bash
+# Install dependencies
+npm install
 
-## Contact
-For questions or contributions, please reach out via our discord daily-recorder channel.
+# Start development server
+npm run dev
 
-
-
-
----
----
----
-Here is the database schema we will be using to implement the Daily Recorder app.
-
-```sql
--- Table: users
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    email TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
--- Table: collectors (or groups)
-CREATE TABLE collectors (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    max_occurrences_per_day INTEGER NOT NULL DEFAULT -1,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- Table: fields
-CREATE TABLE fields (
-    id TEXT PRIMARY KEY,
-    collector_id TEXT NOT NULL,
-    label TEXT NOT NULL,
-    type TEXT NOT NULL,
-    required INTEGER NOT NULL DEFAULT 1 CHECK (required IN (0,1)),
-    settings TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (collector_id) REFERENCES collectors(id)
-);
-
--- Table: entries
-CREATE TABLE entries (
-    id TEXT PRIMARY KEY,
-    collector_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (collector_id) REFERENCES collectors(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- Table: entry_values
-CREATE TABLE entry_values (
-    id TEXT PRIMARY KEY,
-    entry_id TEXT NOT NULL,
-    field_id TEXT NOT NULL,
-    value_text TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (entry_id) REFERENCES entries(id),
-    FOREIGN KEY (field_id) REFERENCES fields(id)
-);
-
--- Table: files
-CREATE TABLE files (
-    id TEXT PRIMARY KEY,
-    entry_value_id TEXT NOT NULL,
-    storage_path TEXT NOT NULL,
-    original_filename TEXT,
-    mime_type TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (entry_value_id) REFERENCES entry_values(id)
-);
+# Build for production
+npm run build
+```

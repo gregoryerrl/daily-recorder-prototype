@@ -1,11 +1,9 @@
-import {initDatabase, testConnection} from "$lib/server/database.js";
+import {initializeDatabase} from "$lib/server/database.js";
 
 // Initialize database when server starts
 try {
-  console.log("Testing database connection...");
-  await testConnection();
-  console.log("Initializing database tables...");
-  await initDatabase();
+  console.log("Initializing database...");
+  await initializeDatabase();
   console.log("Database setup complete");
 } catch (err) {
   console.error("Database setup failed:", err);
